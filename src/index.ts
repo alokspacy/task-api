@@ -4,25 +4,25 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
 let tasks = [
     {
         id: 1,
         title: "Learn Express",
-        done: false
+        done: false,
     },
     {
         id: 2,
         title: "Complete Assignment",
-        done: true
+        done: true,
     },
     {
         id: 3,
         title: "Push to GitHub",
-        done: false
-    }
+        done: false,
+    },
 ];
 
-// Root Endpoint
 app.get("/", (_req: Request, res: Response) => {
     res.status(200).json({
         name: "Task API",
@@ -31,17 +31,50 @@ app.get("/", (_req: Request, res: Response) => {
     });
 });
 
-// Health Endpoint
 app.get("/health", (_req: Request, res: Response) => {
     res.status(200).json({
         status: "ok",
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+app.get("/tasks", (_req: Request, res: Response) => {
+    res.status(200).json(tasks);
 });
 
-app.get("/tasks", (_req, res) => {
-    res.status(200).json(tasks);
+app.get("/tasks/:id", (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+
+    const task = tasks.find((task) => task.id === id);
+
+    if (!task) {
+        return res.status(404).json({
+            error: `Task ${id} not found`,
+        });
+    }
+
+    return res.status(200).json(task);
+});
+
+app.post("/tasks", (req: Request, res: Response) => {
+    const { title } = req.body;
+
+    if (!title || title.trim() === "") {
+        return res.status(400).json({
+            error: "Title is required",
+        });
+    }
+
+    const newTask = {
+        id: tasks.length > 0 ? tasks[tasks.length - 1].id + 1 : 1,
+        title,
+        done: false,
+    };
+
+    tasks.push(newTask);
+
+    return res.status(201).json(newTask);
+});
+
+app.listen(PORT, () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
