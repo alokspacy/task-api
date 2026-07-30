@@ -1,15 +1,26 @@
-import express from "express";
+import express, { Request, Response } from "express";
 
 const app = express();
+const PORT = 3000;
 
 app.use(express.json());
 
-const PORT = 3000;
+// Root Endpoint
+app.get("/", (_req: Request, res: Response) => {
+    res.status(200).json({
+        name: "Task API",
+        version: "1.0",
+        endpoints: ["/tasks"],
+    });
+});
 
-app.get("/", (_req, res) => {
-    res.send("Hello, Task API!");
+// Health Endpoint
+app.get("/health", (_req: Request, res: Response) => {
+    res.status(200).json({
+        status: "ok",
+    });
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
