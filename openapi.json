@@ -3,7 +3,7 @@
     "info": {
         "title": "Task API",
         "version": "1.0.0",
-        "description": "Simple CRUD Task API"
+        "description": "Simple CRUD Task API with Supabase Authentication"
     },
     "servers": [
         {
@@ -11,6 +11,81 @@
         }
     ],
     "paths": {
+        "/auth/signup": {
+            "post": {
+                "summary": "User Signup",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "email",
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User created successfully"
+                    },
+                    "400": {
+                        "description": "Missing email or password or signup error"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "summary": "User Login",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "email",
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful login returning access_token and refresh_token"
+                    },
+                    "400": {
+                        "description": "Missing email or password"
+                    },
+                    "401": {
+                        "description": "Invalid login credentials"
+                    }
+                }
+            }
+        },
         "/tasks": {
             "get": {
                 "summary": "Get all tasks",

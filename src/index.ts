@@ -5,6 +5,7 @@ import express, { Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../openapi.json";
 import { taskRepository } from "./repositories";
+import authRouter from "./routes/auth";
 import { supabase } from "./supabase";
 
 const app = express();
@@ -12,11 +13,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+app.use("/auth", authRouter);
+
 app.get("/", (_req: Request, res: Response) => {
     res.status(200).json({
         name: "Task API",
         version: "1.0",
-        endpoints: ["/tasks"],
+        endpoints: ["/tasks", "/auth/signup", "/auth/login"],
     });
 });
 
