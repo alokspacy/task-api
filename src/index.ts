@@ -1,10 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../openapi.json";
 import { taskRepository } from "./repositories";
+import { supabase } from "./supabase";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -99,5 +103,5 @@ app.delete("/tasks/:id", async (req: Request, res: Response) => {
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`Server running and connected to Supabase`);
 });
