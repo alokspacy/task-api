@@ -11,6 +11,39 @@
         }
     ],
     "paths": {
+        "/public/info": {
+            "get": {
+                "summary": "Public Info Endpoint",
+                "responses": {
+                    "200": {
+                        "description": "Welcome message for public access"
+                    }
+                }
+            }
+        },
+        "/protected/profile": {
+            "get": {
+                "summary": "Protected Profile Endpoint",
+                "parameters": [
+                    {
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Protected profile accessed"
+                    },
+                    "401": {
+                        "description": "Access token required"
+                    }
+                }
+            }
+        },
         "/auth/signup": {
             "post": {
                 "summary": "User Signup",
