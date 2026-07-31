@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../openapi.json";
-import "./database";
+import db from "./database";
 
 const app = express();
 const PORT = 3000;
@@ -26,6 +26,20 @@ let tasks = [
     },
 ];
 
+type TaskRow = {
+    id: number;
+    title: string;
+    done: number;
+};
+
+function mapTaskRow(task: TaskRow) {
+    return {
+        id: task.id,
+        title: task.title,
+        done: task.done === 1,
+    };
+}
+
 app.get("/", (_req: Request, res: Response) => {
     res.status(200).json({
         name: "Task API",
@@ -41,21 +55,25 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 app.get("/tasks", (_req: Request, res: Response) => {
-    res.status(200).json(tasks);
+    const tasksFromDatabase = db.prepare("SELECT * FROM tasks;").all() as TaskRow[];
+
+    res.status(200).json(tasksFromDatabase.map(mapTaskRow));
 });
 
 app.get("/tasks/:id", (req: Request, res: Response) => {
     const id = Number(req.params.id);
 
-    const task = tasks.find((task) => task.id === id);
+    const task = db
+        .prepare("SELECT * FROM tasks WHERE id = ?;")
+        .get(id) as TaskRow | undefined;
 
     if (!task) {
         return res.status(404).json({
-            error: `Task ${id} not found`,
+            error: "Task not found",
         });
     }
 
-    return res.status(200).json(task);
+    return res.status(200).json(mapTaskRow(task));
 });
 
 app.post("/tasks", (req: Request, res: Response) => {
