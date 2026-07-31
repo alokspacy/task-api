@@ -1,128 +1,205 @@
-# Task API
+# Task API (PostgreSQL & Dockerized Version)
 
-A Task API built with Express.js, TypeScript, and SQLite. The application starts with sample tasks, persists data in `tasks.db`, and exposes CRUD endpoints with Swagger UI documentation.
+A RESTful Task Management API built with **Express.js**, **TypeScript**, **PostgreSQL**, and **Docker**. The application uses a decoupled **Repository Pattern** architecture to seamlessly manage database access, exposes CRUD endpoints, and includes interactive Swagger UI documentation.
+
+---
 
 ## Features
 
-- Create, read, update, and delete tasks
-- SQLite persistence with `better-sqlite3`
-- Automatic database and table creation on startup
-- Sample tasks seeded only once
-- Swagger UI for API exploration
+- Full CRUD endpoints for managing tasks (`GET`, `POST`, `PUT`, `DELETE`).
+- **PostgreSQL 16** integration with automated table schema setup (`init.sql`).
+- **Repository Pattern Architecture** decoupling database logic from HTTP routes.
+- **Docker & Docker Compose** orchestration with container healthchecks.
+- Data persistence via Docker named volume (`postgres_data`).
+- Environment variable configuration via `.env`.
+- Interactive Swagger UI documentation at `/docs`.
+
+---
 
 ## Tech Stack
 
-- Node.js
-- Express.js
-- TypeScript
-- SQLite
-- better-sqlite3
-- Swagger UI
+- **Runtime & Language:** Node.js, TypeScript, Express.js
+- **Database:** PostgreSQL 16 (`pg` pool)
+- **Containerization:** Docker, Docker Compose
+- **Documentation:** Swagger UI (`swagger-ui-express`)
 
-## Installation
+---
 
-```bash
-git clone https://github.com/<YOUR_USERNAME>/task-api.git
-cd task-api
-npm install
+## Project Architecture & Repository Pattern
+
+This project implements the **Repository Pattern** to separate business and routing logic from data persistence logic.
+
+```
+[ Express Routes ] ---> [ TaskRepository Interface ]
+                             |
+             +---------------+---------------+
+             |                               |
+  [ SQLiteRepository ]             [ PostgresRepository ]
+  (Legacy SQLite DB)               (Active PostgreSQL DB)
 ```
 
-## How to Run
+> [!IMPORTANT]
+> **Zero Route Changes:** When migrating from SQLite (`BE-02`) to PostgreSQL (`BE-04`), **only the repository implementation changed**. All HTTP routes, controllers, request validations, response status codes, and JSON response formats remained 100% unchanged due to dependency injection via `TaskRepository`.
+
+### `TaskRepository` Interface
+
+```typescript
+export interface Task {
+    id: number;
+    title: string;
+    done: boolean;
+}
+
+export interface TaskRepository {
+    findAll(): Promise<Task[]>;
+    findById(id: number): Promise<Task | null>;
+    create(title: string): Promise<Task>;
+    update(id: number, data: { title?: string; done?: boolean }): Promise<Task | null>;
+    delete(id: number): Promise<boolean>;
+}
+```
+
+---
+
+## Environment Variables
+
+Environment variables are configured in `.env` (derived from `.env.example`):
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/taskdb?schema=public
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=taskdb
+```
+
+In the Docker Compose setup, the `app` container automatically communicates with the `postgres` container over Docker's internal network using:
+`DATABASE_URL=postgresql://postgres:postgres@postgres:5432/taskdb?schema=public`
+
+---
+
+## How to Run with Docker Compose
+
+### 1. Start the Complete Stack (App + PostgreSQL)
+
+Build and run both PostgreSQL and the Express API server:
 
 ```bash
-npm run dev
+docker compose up --build
 ```
+
+The Express `app` service automatically waits until the `postgres` service passes health checks (`pg_isready`) before starting.
 
 The application runs at:
-
 ```text
 http://localhost:3000
 ```
 
-Swagger UI is available at:
-
+Swagger UI documentation is available at:
 ```text
 http://localhost:3000/docs
 ```
 
-On first launch the app automatically:
+### 2. Run Only PostgreSQL Container
 
-- creates `tasks.db` in the project root
-- creates the `tasks` table if it does not exist
-- inserts the sample tasks only when the table is empty
+If you want to run PostgreSQL in Docker while running the Node application locally:
 
-## Why SQLite
-
-SQLite was chosen because it is lightweight, has no separate database server, works well for a small task API, and keeps the project easy to clone and run on any machine. It also supports reliable persistence without adding deployment complexity.
-
-## Database Location
-
-The database file is stored in the project root as:
-
-```text
-tasks.db
+```bash
+docker compose up -d postgres
+npm run dev
 ```
+
+### 3. Stop the Containers
+
+```bash
+docker compose down
+```
+
+---
+
+## Data Persistence & Testing
+
+Data persistence is configured using a Docker named volume in `docker-compose.yml`:
+
+```yaml
+volumes:
+  postgres_data:
+    # Mounted to /var/lib/postgresql/data inside the container
+```
+
+### How Persistence Was Tested:
+
+1. **Start Stack:** Run `docker compose up -d`.
+2. **Create Data:** Send a `POST` request to `http://localhost:3000/tasks` to create new tasks.
+3. **Stop & Remove Containers:** Run `docker compose down` (which stops and removes active containers while keeping the named volume intact).
+4. **Restart Stack:** Run `docker compose up -d`.
+5. **Verify Data:** Send a `GET` request to `http://localhost:3000/tasks`. All created tasks remain persisted across container restarts.
+
+---
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | / | API info |
-| GET | /health | Health check |
-| GET | /tasks | Get all tasks |
-| GET | /tasks/:id | Get a task by ID |
-| POST | /tasks | Create a task |
-| PUT | /tasks/:id | Update a task |
-| DELETE | /tasks/:id | Delete a task |
+| Method | Endpoint | Description | Status Code |
+|--------|----------|-------------|-------------|
+| `GET` | `/` | API Metadata | `200 OK` |
+| `GET` | `/health` | Health Check | `200 OK` |
+| `GET` | `/tasks` | List all tasks | `200 OK` |
+| `GET` | `/tasks/:id` | Get task by ID | `200 OK` / `404 Not Found` |
+| `POST` | `/tasks` | Create a new task | `201 Created` / `400 Bad Request` |
+| `PUT` | `/tasks/:id` | Update title or done status | `200 OK` / `400 Bad Request` / `404 Not Found` |
+| `DELETE` | `/tasks/:id` | Delete task by ID | `204 No Content` / `404 Not Found` |
 
-## Example SQL
+---
 
-```sql
-SELECT * FROM tasks;
-```
+## Screenshot Placeholders
 
-## Example cURL Request
+### 1. Docker Compose Services & Health Check
+![Docker Execution Screenshot](docs/docker.png)
+*Placeholder: Screenshot of `docker compose ps` showing running app and healthy postgres containers.*
 
-```bash
-curl -X POST http://localhost:3000/tasks \
-	-H "Content-Type: application/json" \
-	-d "{\"title\":\"Buy milk\"}"
-```
+### 2. PostgreSQL Table & Database Verification
+![Database Screenshot](docs/database.png)
+*Placeholder: Screenshot showing `tasks` table schema and stored rows in PostgreSQL.*
 
-## DB Browser for SQLite
+### 3. Interactive Swagger UI
+![Swagger UI Screenshot](docs/swagger.png)
+*Placeholder: Screenshot showing Swagger UI documentation at `/docs`.*
 
-Open `tasks.db` in DB Browser for SQLite and browse the `tasks` table to inspect the stored rows.
+---
 
-![Database screenshot](docs/database.png)
-
-## Swagger UI Screenshot
-
-![Swagger UI](docs/swagger.png)
-
-## Repository Structure
+## Final Project Structure
 
 ```text
 .
+├── .dockerignore
+├── .env
+├── .env.example
+├── .gitignore
+├── Dockerfile
+├── README.md
+├── docker-compose.yml
+├── init.sql
+├── openapi.json
+├── package-lock.json
+├── package.json
+├── tasks.db
+├── tsconfig.json
 ├── docs/
 │   ├── database.png
+│   ├── docker.png
 │   └── swagger.png
-├── src/
-│   ├── database.ts
-│   └── index.ts
-├── openapi.json
-├── package.json
-├── README.md
-├── tasks.db
-└── tsconfig.json
+└── src/
+    ├── database.ts
+    ├── index.ts
+    ├── database/
+    │   └── postgres.ts
+    └── repositories/
+        ├── index.ts
+        ├── PostgresRepository.ts
+        ├── SQLiteRepository.ts
+        └── TaskRepository.ts
 ```
 
-## Future Improvements
-
-- Add request/response validation middleware
-- Add pagination and filtering for `/tasks`
-- Add automated tests
-- Migrate write operations to a dedicated service layer
-- Add environment-based configuration for the database path
+---
 
 ## Author
 
