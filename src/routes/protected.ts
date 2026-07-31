@@ -1,20 +1,24 @@
-import { Request, Response, Router } from "express";
+import { Response, Router } from "express";
+import { AuthenticatedRequest, authMiddleware } from "../middleware/auth";
 
 const router = Router();
 
+// Protect all routes in this router with authMiddleware
+router.use(authMiddleware);
+
 // GET /protected/profile
-router.get("/profile", (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || authHeader.trim() === "") {
-        return res.status(401).json({
-            error: "Access token required",
-        });
-    }
-
-    // Do NOT verify token yet as specified in Stage 2 requirements
+router.get("/profile", (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({
         message: "Protected profile accessed",
+        user: req.user,
+    });
+});
+
+// GET /protected/dashboard
+router.get("/dashboard", (req: AuthenticatedRequest, res: Response) => {
+    return res.status(200).json({
+        message: "Welcome to your protected dashboard!",
+        user: req.user,
     });
 });
 

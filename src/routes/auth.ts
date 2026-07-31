@@ -1,4 +1,5 @@
 import { Request, Response, Router } from "express";
+import { AuthenticatedRequest, authMiddleware } from "../middleware/auth";
 import { supabase } from "../supabase";
 
 const router = Router();
@@ -64,5 +65,15 @@ router.post("/login", async (req: Request, res: Response) => {
         user: data.user,
     });
 });
+
+// POST /auth/logout
+router.post(
+    "/logout",
+    authMiddleware,
+    async (_req: AuthenticatedRequest, res: Response) => {
+        await supabase.auth.signOut();
+        return res.status(204).send();
+    }
+);
 
 export default router;
