@@ -1,95 +1,62 @@
-# Task API (PostgreSQL & Dockerized Version)
+# Task API (Supabase Authentication & PostgreSQL Dockerized)
 
-A RESTful Task Management API built with **Express.js**, **TypeScript**, **PostgreSQL**, and **Docker**. The application uses a decoupled **Repository Pattern** architecture to seamlessly manage database access, exposes CRUD endpoints, and includes interactive Swagger UI documentation.
+A production-grade RESTful Task Management API built with **Express.js**, **TypeScript**, **PostgreSQL**, **Supabase Authentication**, and **Docker**. The application supports user authentication, protected routes via JWT Bearer tokens, repository-pattern database access, and interactive Swagger UI documentation.
 
 ---
 
 ## Features
 
-- Full CRUD endpoints for managing tasks (`GET`, `POST`, `PUT`, `DELETE`).
-- **PostgreSQL 16** integration with automated table schema setup (`init.sql`).
-- **Repository Pattern Architecture** decoupling database logic from HTTP routes.
-- **Docker & Docker Compose** orchestration with container healthchecks.
-- Data persistence via Docker named volume (`postgres_data`).
-- Environment variable configuration via `.env`.
-- Interactive Swagger UI documentation at `/docs`.
+- **Supabase Authentication**: User registration (`signup`), login (`signInWithPassword`), and logout (`signOut`).
+- **JWT Authorization Middleware**: Reusable Express middleware (`authMiddleware`) validating Bearer tokens with `supabase.auth.getUser(token)`.
+- **Public & Protected Endpoints**: Public routes accessible without authentication; protected routes accessible only with valid JWT tokens.
+- **Repository Architecture**: Decoupled database logic (`TaskRepository`) supporting both PostgreSQL and SQLite.
+- **Docker Compose Orchestration**: Containerized application stack with automated database health checks (`pg_isready`).
+- **Interactive Swagger UI**: Interactive API documentation at `/docs` featuring Bearer authentication lock icons and test authorization modal.
 
 ---
 
-## Tech Stack
+## Installation
 
-- **Runtime & Language:** Node.js, TypeScript, Express.js
-- **Database:** PostgreSQL 16 (`pg` pool)
-- **Containerization:** Docker, Docker Compose
-- **Documentation:** Swagger UI (`swagger-ui-express`)
+Clone the repository and install dependencies:
 
----
-
-## Project Architecture & Repository Pattern
-
-This project implements the **Repository Pattern** to separate business and routing logic from data persistence logic.
-
-```
-[ Express Routes ] ---> [ TaskRepository Interface ]
-                             |
-             +---------------+---------------+
-             |                               |
-  [ SQLiteRepository ]             [ PostgresRepository ]
-  (Legacy SQLite DB)               (Active PostgreSQL DB)
-```
-
-> [!IMPORTANT]
-> **Zero Route Changes:** When migrating from SQLite (`BE-02`) to PostgreSQL (`BE-04`), **only the repository implementation changed**. All HTTP routes, controllers, request validations, response status codes, and JSON response formats remained 100% unchanged due to dependency injection via `TaskRepository`.
-
-### `TaskRepository` Interface
-
-```typescript
-export interface Task {
-    id: number;
-    title: string;
-    done: boolean;
-}
-
-export interface TaskRepository {
-    findAll(): Promise<Task[]>;
-    findById(id: number): Promise<Task | null>;
-    create(title: string): Promise<Task>;
-    update(id: number, data: { title?: string; done?: boolean }): Promise<Task | null>;
-    delete(id: number): Promise<boolean>;
-}
+```bash
+git clone https://github.com/alokspacy/task-api.git
+cd task-api
+npm install
 ```
 
 ---
 
-## Environment Variables
+## Environment Variables (`.env.example`)
 
-Environment variables are configured in `.env` (derived from `.env.example`):
+Copy `.env.example` to `.env` and fill in your Supabase credentials:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/taskdb?schema=public
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=taskdb
+PORT=3000
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-anon-key
 ```
 
-In the Docker Compose setup, the `app` container automatically communicates with the `postgres` container over Docker's internal network using:
-`DATABASE_URL=postgresql://postgres:postgres@postgres:5432/taskdb?schema=public`
+> [!CAUTION]
+> Never commit `.env` to source control. `.env` is listed in `.gitignore` to prevent secret leaks.
 
 ---
 
-## How to Run with Docker Compose
+## How to Run
 
-### 1. Start the Complete Stack (App + PostgreSQL)
+### 1. Local Development Mode
 
-Build and run both PostgreSQL and the Express API server:
+Start the local server with hot-reloading:
 
 ```bash
-docker compose up --build
+npm run dev
 ```
 
-The Express `app` service automatically waits until the `postgres` service passes health checks (`pg_isready`) before starting.
-
-The application runs at:
+The API server runs at:
 ```text
 http://localhost:3000
 ```
@@ -99,70 +66,85 @@ Swagger UI documentation is available at:
 http://localhost:3000/docs
 ```
 
-### 2. Run Only PostgreSQL Container
+### 2. Docker Compose Mode (Full Stack)
 
-If you want to run PostgreSQL in Docker while running the Node application locally:
-
-```bash
-docker compose up -d postgres
-npm run dev
-```
-
-### 3. Stop the Containers
+Build and run both PostgreSQL and Express app containers:
 
 ```bash
-docker compose down
+docker compose up --build
 ```
 
 ---
 
-## Data Persistence & Testing
+## Authentication Flow
 
-Data persistence is configured using a Docker named volume in `docker-compose.yml`:
-
-```yaml
-volumes:
-  postgres_data:
-    # Mounted to /var/lib/postgresql/data inside the container
+```
++--------+            +------------+            +----------------+
+| Client |            | Express API|            | Supabase Auth  |
++----+---+            +-----+------+            +-------+--------+
+     |                      |                           |
+     |--- POST /auth/signup ------> supabase.auth.signUp()
+     |                      |                           |
+     |--- POST /auth/login -------> supabase.auth.signInWithPassword()
+     |<-- { access_token } -|                           |
+     |                      |                           |
+     |--- GET /protected/* (Header: Bearer <token>) --->|
+     |                      |--- supabase.auth.getUser(token) -> [Validated]
+     |<-- 200 OK (Data) ----|                           |
+     |                      |                           |
+     |--- POST /auth/logout ------> supabase.auth.signOut()
 ```
 
-### How Persistence Was Tested:
-
-1. **Start Stack:** Run `docker compose up -d`.
-2. **Create Data:** Send a `POST` request to `http://localhost:3000/tasks` to create new tasks.
-3. **Stop & Remove Containers:** Run `docker compose down` (which stops and removes active containers while keeping the named volume intact).
-4. **Restart Stack:** Run `docker compose up -d`.
-5. **Verify Data:** Send a `GET` request to `http://localhost:3000/tasks`. All created tasks remain persisted across container restarts.
+1. **Signup (`POST /auth/signup`)**: Pass `email` and `password` to create a new user account.
+2. **Login (`POST /auth/login`)**: Pass `email` and `password` to authenticate. Returns an `access_token` and `refresh_token`.
+3. **Protected Requests**: Include the header `Authorization: Bearer <access_token>` in requests to protected routes.
+4. **Logout (`POST /auth/logout`)**: Invalidate session using Supabase Auth.
 
 ---
 
-## API Endpoints
+## Public vs Protected Routes
 
-| Method | Endpoint | Description | Status Code |
-|--------|----------|-------------|-------------|
-| `GET` | `/` | API Metadata | `200 OK` |
-| `GET` | `/health` | Health Check | `200 OK` |
-| `GET` | `/tasks` | List all tasks | `200 OK` |
-| `GET` | `/tasks/:id` | Get task by ID | `200 OK` / `404 Not Found` |
-| `POST` | `/tasks` | Create a new task | `201 Created` / `400 Bad Request` |
-| `PUT` | `/tasks/:id` | Update title or done status | `200 OK` / `400 Bad Request` / `404 Not Found` |
-| `DELETE` | `/tasks/:id` | Delete task by ID | `204 No Content` / `404 Not Found` |
+- **Public Routes (`/public/info`, `/tasks`, `/health`, `/docs`)**: Require no authentication header. Accessible by anyone.
+- **Protected Routes (`/protected/profile`, `/protected/dashboard`, `/auth/logout`)**: Must include a valid `Authorization: Bearer <access_token>` header. Requests missing tokens return `401 Unauthorized` (`Access token required`); requests with invalid tokens return `401 Unauthorized` (`Invalid or expired token`).
 
 ---
 
-## Screenshot Placeholders
+## API Endpoints Table
 
-### 1. Docker Compose Services & Health Check
-![Docker Execution Screenshot](docs/docker.png)
-*Placeholder: Screenshot of `docker compose ps` showing running app and healthy postgres containers.*
+| Method | Endpoint | Access Level | Description | Status Codes |
+|--------|----------|--------------|-------------|--------------|
+| `GET` | `/` | Public | API Metadata | `200` |
+| `GET` | `/health` | Public | Health Check | `200` |
+| `GET` | `/public/info` | Public | Public Info Message | `200` |
+| `POST` | `/auth/signup` | Public | User Signup | `201`, `400` |
+| `POST` | `/auth/login` | Public | User Login | `200`, `400`, `401` |
+| `POST` | `/auth/logout` | Protected | User Logout | `204`, `401` |
+| `GET` | `/protected/profile` | Protected | User Profile Details | `200`, `401` |
+| `GET` | `/protected/dashboard`| Protected | Protected Dashboard | `200`, `401` |
+| `GET` | `/tasks` | Public | List all tasks | `200` |
+| `GET` | `/tasks/:id` | Public | Get task by ID | `200`, `404` |
+| `POST` | `/tasks` | Public | Create new task | `201`, `400` |
+| `PUT` | `/tasks/:id` | Public | Update task | `200`, `400`, `404` |
+| `DELETE`| `/tasks/:id` | Public | Delete task | `204`, `404` |
 
-### 2. PostgreSQL Table & Database Verification
-![Database Screenshot](docs/database.png)
-*Placeholder: Screenshot showing `tasks` table schema and stored rows in PostgreSQL.*
+---
 
-### 3. Interactive Swagger UI
-![Swagger UI Screenshot](docs/swagger.png)
-*Placeholder: Screenshot showing Swagger UI documentation at `/docs`.*
+## Swagger UI Documentation
+
+Access Swagger UI interactive documentation at `http://localhost:3000/docs`. Click **Authorize** at the top right and enter your Bearer `access_token` to test protected routes directly in the browser.
+
+![Swagger UI Bearer Authentication Documentation](docs/swagger_bearer.png)
+
+---
+
+## Security Notes
+
+1. **Token Validation**: The Express server uses `supabase.auth.getUser(token)` on every protected request to cryptographically verify token integrity and expiration.
+2. **Secret Management**: API keys and database credentials are stored strictly in `.env` and loaded via `dotenv`. `.env` is ignored in `.gitignore`.
+3. **HTTP Status Codes**:
+   - `400 Bad Request`: Missing body parameters.
+   - `401 Unauthorized`: Missing or invalid Bearer token / login credentials.
+   - `404 Not Found`: Entity not found.
 
 ---
 
@@ -186,17 +168,25 @@ volumes:
 ├── docs/
 │   ├── database.png
 │   ├── docker.png
-│   └── swagger.png
+│   ├── swagger.png
+│   └── swagger_bearer.png
 └── src/
     ├── database.ts
     ├── index.ts
+    ├── supabase.ts
     ├── database/
     │   └── postgres.ts
-    └── repositories/
-        ├── index.ts
-        ├── PostgresRepository.ts
-        ├── SQLiteRepository.ts
-        └── TaskRepository.ts
+    ├── middleware/
+    │   └── auth.ts
+    ├── repositories/
+    │   ├── index.ts
+    │   ├── PostgresRepository.ts
+    │   ├── SQLiteRepository.ts
+    │   └── TaskRepository.ts
+    └── routes/
+        ├── auth.ts
+        ├── protected.ts
+        └── public.ts
 ```
 
 ---
