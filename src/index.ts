@@ -8,24 +8,6 @@ const PORT = 3000;
 
 app.use(express.json());
 
-let tasks = [
-    {
-        id: 1,
-        title: "Learn Express",
-        done: false,
-    },
-    {
-        id: 2,
-        title: "Complete Assignment",
-        done: true,
-    },
-    {
-        id: 3,
-        title: "Push to GitHub",
-        done: false,
-    },
-];
-
 type TaskRow = {
     id: number;
     title: string;
@@ -103,11 +85,13 @@ app.put("/tasks/:id", (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const { title, done } = req.body;
 
-    const task = tasks.find((task) => task.id === id);
+    const task = db
+        .prepare("SELECT * FROM tasks WHERE id = ?;")
+        .get(id) as TaskRow | undefined;
 
     if (!task) {
         return res.status(404).json({
-            error: `Task ${id} not found`,
+            error: "Task not found",
         });
     }
 
@@ -121,24 +105,30 @@ app.put("/tasks/:id", (req: Request, res: Response) => {
         });
     }
 
-    if (title !== undefined) task.title = title;
-    if (done !== undefined) task.done = done;
+    const updatedTitle = title !== undefined ? title : task.title;
+    const updatedDone = done !== undefined ? (done ? 1 : 0) : task.done;
 
-    return res.status(200).json(task);
+    db.prepare(
+        "UPDATE tasks SET title = ?, done = ? WHERE id = ?;"
+    ).run(updatedTitle, updatedDone, id);
+
+    return res.status(200).json({
+        id: task.id,
+        title: updatedTitle,
+        done: updatedDone === 1,
+    });
 });
 
 app.delete("/tasks/:id", (req: Request, res: Response) => {
     const id = Number(req.params.id);
 
-    const index = tasks.findIndex((task) => task.id === id);
+    const result = db.prepare("DELETE FROM tasks WHERE id = ?;").run(id);
 
-    if (index === -1) {
+    if (result.changes === 0) {
         return res.status(404).json({
-            error: `Task ${id} not found`,
+            error: "Task not found",
         });
     }
-
-    tasks.splice(index, 1);
 
     return res.status(204).send();
 });
