@@ -85,13 +85,16 @@ app.post("/tasks", (req: Request, res: Response) => {
         });
     }
 
+    const insertTask = db.prepare(
+        "INSERT INTO tasks (title, done) VALUES (?, ?);"
+    );
+    const result = insertTask.run(title, 0);
+
     const newTask = {
-        id: tasks.length > 0 ? tasks[tasks.length - 1].id + 1 : 1,
+        id: Number(result.lastInsertRowid),
         title,
         done: false,
     };
-
-    tasks.push(newTask);
 
     return res.status(201).json(newTask);
 });
